@@ -90,40 +90,52 @@ const customReducer = (
   if (isNil(allocateValue) || isNil(id)) {
     return state;
   }
-  const updatedRows = state.map((rowChild) => {
+  const updatedRows: DataChildModalInterface[] = state.map((rowChild) => {
     if (!isNil(action.parentId) && rowChild.id === action.parentId) {
       // NOTE: Performing child operations
+      const selectedNestedChild = rowChild.children.find(
+        (nestedChild) => nestedChild.id === action.id
+      );
+      if (isNil(selectedNestedChild)) {
+        return rowChild;
+      }
+      const filteredNestedChildren = rowChild.children.filter(
+        (nestedChild) => nestedChild.id !== selectedNestedChild.id
+      );
+      const childPercentValue = getPercentValue(
+        allocateValue,
+        selectedNestedChild.value
+      );
+      const diffFromPrevious = allocateValue - selectedNestedChild.value;
+      const currentValueVariance = floor(
+        (diffFromPrevious / selectedNestedChild.value) * 100,
+        2
+      );
+      const filteredTotalValue = sum(
+        filteredNestedChildren.map((nestedChild) => nestedChild.value)
+      );
+      const nestedChildTotalValue =
+        selectedNestedChild.value + childPercentValue;
       return {
         ...rowChild,
-        children: rowChild.children.map((nestedChild) => {
-          if (nestedChild.id === action.id) {
-            // NOTE: Percentage update
-            if (action.type === UpdateActionEnum.percentage) {
-              const percentValue = getPercentValue(
-                allocateValue,
-                nestedChild.value
-              );
-
-              return {
-                ...nestedChild,
-                value: nestedChild.value + percentValue,
-                varience: allocateValue,
-              };
-            }
-            // NOTE: Value update
-            const diffFromPrevious = allocateValue - nestedChild.value;
-            const currentValueVariance = floor(
-              (diffFromPrevious / nestedChild.value) * 100,
-              2
-            );
-            return {
-              ...nestedChild,
-              value: allocateValue,
-              varience: currentValueVariance,
-            };
-          }
-          return nestedChild;
-        }),
+        value:
+          action.type === UpdateActionEnum.percentage
+            ? filteredTotalValue + nestedChildTotalValue
+            : filteredTotalValue + allocateValue,
+        children: [
+          ...filteredNestedChildren,
+          {
+            ...selectedNestedChild,
+            value:
+              action.type === UpdateActionEnum.percentage
+                ? nestedChildTotalValue
+                : allocateValue,
+            varience:
+              action.type === UpdateActionEnum.percentage
+                ? allocateValue
+                : currentValueVariance,
+          },
+        ],
       };
     }
     // NOTE: Performing parent operations
